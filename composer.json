@@ -1,0 +1,32 @@
+{
+    "name": "semitexa/mcp",
+    "description": "Semitexa MCP - a Model Context Protocol server that lets coding agents build and check Semitexa apps",
+    "type": "semitexa-module",
+    "license": "MIT",
+    "require": {
+        "php": "^8.4",
+        "semitexa/core": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Semitexa\\Mcp\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Semitexa\\Mcp\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "semitexa-module": {
+            "extends": null
+        }
+    },
+    "keywords": [
+        "semitexa",
+        "mcp",
+        "model-context-protocol",
+        "ai",
+        "agents"
+    ]
+}
