@@ -89,7 +89,9 @@ final class McpServer
     private function initialize(array $params): array
     {
         $asked = $params['protocolVersion'] ?? null;
-        $capabilities = ['tools' => ['listChanged' => false]];
+        // true: the host relay (bin/mcp-relay.php) says so after the server
+        // behind it was replaced by a restart; the server itself never does.
+        $capabilities = ['tools' => ['listChanged' => true]];
         if ($this->of(McpResourceProviderInterface::class) !== []) {
             $capabilities['resources'] = ['listChanged' => false];
         }
