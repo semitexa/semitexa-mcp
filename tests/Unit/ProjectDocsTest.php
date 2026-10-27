@@ -56,6 +56,20 @@ final class ProjectDocsTest extends TestCase
         self::assertNull($docs->read('semitexa://project/.env'));
     }
 
+    /** A listed file that cannot be read went out as an empty page, read successfully. */
+    #[Test]
+    public function a_listed_file_that_cannot_be_read_is_an_error_not_an_empty_page(): void
+    {
+        chmod($this->root . '/AGENTS.md', 0o000);
+        // Root reads it whatever its permissions: then this proves nothing, and says so.
+        self::assertFalse(is_readable($this->root . '/AGENTS.md'), 'the file must be unreadable to the user running the test');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('AGENTS.md is listed but cannot be read.');
+
+        $this->docs()->read('semitexa://project/AGENTS.md');
+    }
+
     private function docs(): ProjectDocs
     {
         return (new ProjectDocs())->inProject($this->root);

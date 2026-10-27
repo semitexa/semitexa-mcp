@@ -21,6 +21,9 @@ use Semitexa\Mcp\Domain\Model\McpPrompt;
 #[AsMcpProvider]
 final class RecipePrompts implements McpPromptProviderInterface
 {
+    /** The generators whose output answers on a route. */
+    private const ROUTE_GENERATORS = ['make:page', 'make:payload', 'make:handler'];
+
     public function prompts(): array
     {
         return array_map(static fn (Recipe $recipe): McpPrompt => new McpPrompt(
@@ -61,16 +64,30 @@ final class RecipePrompts implements McpPromptProviderInterface
             : 'Its arguments go in arg as "name=value": ' . implode(', ', array_map(static fn (string $k, string $v): string => "\"{$k}={$v}\"", array_keys($given), $given))
                 . ($hints !== '' ? "; choose the others ({$hints}) from the project." : '.');
 
+        // Only a recipe that generates something is scaffolded, and only one
+        // whose generators make a route is invoked: an audit ("findings, not
+        // code") was told to scaffold with write: true and call a route it
+        // never had.
+        $steps = ['semitexa_orient, to see the project and what is in progress.'];
+        if ($recipe->generator_chain !== []) {
+            $steps[] = "semitexa_scaffold with recipe: {$recipe->id}, without write, to see what it creates; then again with write: true. {$args}";
+            $steps[] = 'Fill in what the generated files leave to you. semitexa_ask and the docs resources say how this framework does it; do not guess.';
+        } else {
+            $steps[] = 'Nothing is generated for this: read the code it concerns first. semitexa_ask and the docs resources say how this framework does it; do not guess.';
+        }
+        if (array_intersect($recipe->generator_chain, self::ROUTE_GENERATORS) !== []) {
+            $steps[] = 'semitexa_invoke on the route, to see that it answers as intended.';
+        }
+        $steps[] = $recipe->generator_chain !== []
+            ? 'semitexa_verify on every file you changed, until it passes. Say what you built and give its receipt id.'
+            : 'semitexa_verify on every file you changed, if any, until it passes. Say what you found or did, and give its receipt id.';
+
         return implode("\n", array_filter([
             "{$recipe->label}: {$recipe->summary}",
             $goal !== '' ? "It is for: {$goal}" : null,
             '',
             'Build it the way this Semitexa project does:',
-            '1. semitexa_orient, to see the project and what is in progress.',
-            "2. semitexa_scaffold with recipe: {$recipe->id}, without write, to see what it creates; then again with write: true. {$args}",
-            '3. Fill in what the generated files leave to you. semitexa_ask and the docs resources say how this framework does it; do not guess.',
-            '4. semitexa_invoke on the route, to see that it answers as intended.',
-            '5. semitexa_verify on every file you changed, until it passes. Say what you built and give its receipt id.',
+            ...array_map(static fn (int $i, string $step): string => ($i + 1) . '. ' . $step, array_keys($steps), $steps),
         ], static fn (?string $line): bool => $line !== null));
     }
 

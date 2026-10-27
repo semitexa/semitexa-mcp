@@ -36,6 +36,32 @@ final class RecipePromptsTest extends TestCase
         self::assertStringEndsWith('5. semitexa_verify on every file you changed, until it passes. Say what you built and give its receipt id.', $text);
     }
 
+    /** An audit ("findings, not code") was told to scaffold with write: true and invoke a route it never had. */
+    #[Test]
+    public function a_recipe_that_generates_nothing_is_not_scaffolded_or_invoked(): void
+    {
+        $messages = (new RecipePrompts())->get('audit_codebase', []);
+
+        self::assertNotNull($messages);
+        self::assertStringEndsWith(implode("\n", [
+            'Build it the way this Semitexa project does:',
+            '1. semitexa_orient, to see the project and what is in progress.',
+            '2. Nothing is generated for this: read the code it concerns first. semitexa_ask and the docs resources say how this framework does it; do not guess.',
+            '3. semitexa_verify on every file you changed, if any, until it passes. Say what you found or did, and give its receipt id.',
+        ]), $messages[0]['text']);
+    }
+
+    /** A service has no route to invoke. */
+    #[Test]
+    public function a_generated_service_is_scaffolded_but_not_invoked(): void
+    {
+        $text = (new RecipePrompts())->get('add_service', [])[0]['text'] ?? '';
+
+        self::assertStringContainsString("\n2. semitexa_scaffold with recipe: add_service, without write", $text);
+        self::assertStringContainsString("\n4. semitexa_verify on every file you changed, until it passes.", $text);
+        self::assertStringNotContainsString('semitexa_invoke', $text);
+    }
+
     #[Test]
     public function an_unknown_prompt_is_none_of_this_providers(): void
     {

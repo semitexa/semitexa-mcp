@@ -101,8 +101,11 @@ final class McpRelayTest extends TestCase
         $this->receive();
         $this->receive(5.0); // list_changed
 
-        self::assertStringContainsString('"sampling":{}', (string) file_get_contents($this->log));
-        self::assertStringNotContainsString('"sampling":[]', (string) file_get_contents($this->log));
+        // Both servers log what they get: the first the agent's line, the
+        // second the replay — so one `{}` alone would not prove the replay.
+        $log = (string) file_get_contents($this->log);
+        self::assertSame(2, substr_count($log, '"sampling":{}'), 'the replay keeps {} as sent: ' . $log);
+        self::assertStringNotContainsString('"sampling":[]', $log);
     }
 
     /** `printf ... | bin/semitexa mcp`: the answers come before the relay ends. */

@@ -64,6 +64,11 @@ final class LocalCommandRunnerTest extends TestCase
     #[Test]
     public function past_its_time_what_the_command_started_is_killed_too(): void
     {
+        // The runner kills the group only with setsid and posix_kill, and the
+        // child is seen only through procfs: without them an unreadable stat
+        // read as "killed". Missing, the test fails instead of passing blind.
+        self::assertTrue(is_executable('/usr/bin/setsid') && function_exists('posix_kill'), 'the group kill needs /usr/bin/setsid and posix_kill');
+        self::assertNotFalse(@file_get_contents('/proc/self/stat'), 'the child is watched through procfs');
         $run = (new LocalCommandRunner($this->dir . '/console', $this->dir))->run('spawn', [], 1);
         $child = (int) file_get_contents($this->dir . '/child.pid');
         usleep(200_000);

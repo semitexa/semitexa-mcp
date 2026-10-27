@@ -60,8 +60,14 @@ final class ProjectDocs implements McpResourceProviderInterface
         if ($file === null || !is_file($file)) {
             return null;
         }
+        // Listed but unreadable (its permissions): an error, not an empty
+        // page the agent would take as "nothing to follow".
+        $text = @file_get_contents($file);
+        if ($text === false) {
+            throw new \RuntimeException(sprintf('%s is listed but cannot be read.', basename($file)));
+        }
 
-        return ['mimeType' => 'text/markdown', 'text' => (string) file_get_contents($file)];
+        return ['mimeType' => 'text/markdown', 'text' => $text];
     }
 
     /** @return array<string, array{file: string, title: string, summary: string}> */

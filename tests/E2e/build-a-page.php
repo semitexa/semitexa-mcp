@@ -79,9 +79,20 @@ try {
     $step('semitexa_generate make:module', !$made['error'] && is_dir($moduleDir), $module);
 
     $page = ['module' => $module, 'name' => 'Pricing', 'path' => $path, 'method' => 'GET'];
+    // The whole module tree before and after, not one file the dry run
+    // might have skipped while writing another.
+    $listing = static function () use ($moduleDir): array {
+        $paths = [];
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($moduleDir, FilesystemIterator::SKIP_DOTS)) as $file) {
+            $paths[] = $file instanceof SplFileInfo ? $file->getPathname() : '';
+        }
+        sort($paths);
+
+        return $paths;
+    };
+    $before = $listing();
     $dry = $tool('semitexa_generate', ['generator' => 'make:page', 'options' => $page]);
-    $planned = $dry['value']['result']['created'] ?? $dry['value']['result']['planned'] ?? [];
-    $step('semitexa_generate make:page, dry', !$dry['error'] && !is_file("{$moduleDir}/src/Application/Payload/Request/PricingPayload.php"), 'nothing written');
+    $step('semitexa_generate make:page, dry', !$dry['error'] && $before !== [] && $listing() === $before, 'nothing written');
 
     $written = $tool('semitexa_generate', ['generator' => 'make:page', 'options' => $page, 'write' => true]);
     $created = array_values(array_filter(array_map(
