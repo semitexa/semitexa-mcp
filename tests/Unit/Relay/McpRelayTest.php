@@ -63,7 +63,11 @@ final class McpRelayTest extends TestCase
         $this->send(['jsonrpc' => '2.0', 'method' => 'notifications/initialized']);
 
         $this->send(['jsonrpc' => '2.0', 'id' => 2, 'method' => 'tools/list']);
-        $pid = $this->receive()['result']['pid'];
+        $before = $this->receive()['result'];
+        $pid = $before['pid'];
+        // The first start keeps bin/semitexa's fallbacks: with the flag, a
+        // stopped app answered 75 and the server never started.
+        self::assertSame('', $before['direct']);
 
         // The container goes away mid-call.
         $this->send(['jsonrpc' => '2.0', 'id' => 3, 'method' => 'test/die']);
@@ -78,6 +82,7 @@ final class McpRelayTest extends TestCase
         $after = $this->receive();
         self::assertSame(4, $after['id']);
         self::assertNotSame($pid, $after['result']['pid'], 'answered by the new server');
+        self::assertSame('1', $after['result']['direct'], 'a restart asks for the running app');
 
         $seen = (string) file_get_contents($this->log);
         $newServer = array_values(array_filter(explode("\n", $seen), static fn (string $l): bool => str_starts_with($l, $after['result']['pid'] . ' ')));

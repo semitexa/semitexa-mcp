@@ -129,8 +129,7 @@ final class SemitexaMcpRelay
                 $this->held[] = $line;
                 continue;
             }
-            @fwrite($this->child['in'], $line);
-            @fflush($this->child['in']);
+            $this->toChild($line);
         }
     }
 
@@ -171,9 +170,8 @@ final class SemitexaMcpRelay
                 $this->replayId = null;
                 if ($this->child !== null) {
                     foreach ([...($this->initialized !== null ? [$this->initialized] : []), ...$this->held] as $held) {
-                        @fwrite($this->child['in'], $held);
+                        $this->toChild($held);
                     }
-                    @fflush($this->child['in']);
                 }
                 $this->held = [];
                 $this->toClient(['jsonrpc' => '2.0', 'method' => 'notifications/tools/list_changed']);
@@ -193,25 +191,52 @@ final class SemitexaMcpRelay
             return false;
         }
         usleep(1_000_000);
-        $this->child = $this->start();
+        $this->child = $this->start(restart: true);
         if ($this->child !== null && $this->initialize !== null) {
             $this->replayId = 'semitexa-relay-reinit-' . $this->generation;
             $replay = json_decode($this->initialize);
             if ($replay instanceof \stdClass) {
                 $replay->id = $this->replayId;
-                @fwrite($this->child['in'], json_encode($replay, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) . "\n");
-                @fflush($this->child['in']);
+                $this->toChild(json_encode($replay, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) . "\n");
             }
         }
 
         return true;
     }
 
-    /** @return array{proc: resource, in: resource, out: resource}|null */
-    private function start(): ?array
+    /**
+     * A line to the server. Its stdin may be closed already (it exited
+     * between two reads): fwrite then throws a TypeError, which `@` does not
+     * silence, and the relay died with the server it was there to outlive.
+     */
+    private function toChild(string $line): void
+    {
+        $in = $this->child['in'] ?? null;
+        if (!is_resource($in)) {
+            return;
+        }
+        try {
+            @fwrite($in, $line);
+            @fflush($in);
+        } catch (\Throwable) {
+            // Gone: the read loop sees it exit and restarts it.
+        }
+    }
+
+    /**
+     * $restart: only a restart asks for the running app (SEMITEXA_MCP_DIRECT),
+     * so it never starts a one-off container mid-restart. The first start
+     * keeps bin/semitexa's fallbacks: with the flag, a stopped app (or a
+     * project without Docker) answered 75 and the server never started.
+     *
+     * @return array{proc: resource, in: resource, out: resource}|null
+     */
+    private function start(bool $restart = false): ?array
     {
         $env = getenv();
-        $env['SEMITEXA_MCP_DIRECT'] = '1';
+        if ($restart) {
+            $env['SEMITEXA_MCP_DIRECT'] = '1';
+        }
         $pipes = [];
         $proc = proc_open($this->command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => STDERR], $pipes, null, $env);
         if (!is_resource($proc)) {
