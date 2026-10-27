@@ -60,18 +60,41 @@ final class ProjectDocsTest extends TestCase
     #[Test]
     public function a_listed_file_that_cannot_be_read_is_an_error_not_an_empty_page(): void
     {
-        chmod($this->root . '/AGENTS.md', 0o000);
-        // Root reads it whatever its permissions: then this proves nothing, and says so.
-        self::assertFalse(is_readable($this->root . '/AGENTS.md'), 'the file must be unreadable to the user running the test');
+        // A stream wrapper that says the file is there and then refuses to
+        // open it: chmod 000 is no failure at all to a test run as root.
+        stream_wrapper_register('mcp-unreadable', UnreadableFileStream::class);
+        try {
+            self::assertTrue(is_file('mcp-unreadable://project/AGENTS.md'), 'listed: the file is there');
 
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('AGENTS.md is listed but cannot be read.');
+            $this->expectException(\RuntimeException::class);
+            $this->expectExceptionMessage('AGENTS.md is listed but cannot be read.');
 
-        $this->docs()->read('semitexa://project/AGENTS.md');
+            (new ProjectDocs())->inProject('mcp-unreadable://project')->read('semitexa://project/AGENTS.md');
+        } finally {
+            stream_wrapper_unregister('mcp-unreadable');
+        }
     }
 
     private function docs(): ProjectDocs
     {
         return (new ProjectDocs())->inProject($this->root);
+    }
+}
+
+/** Every path is a regular file that cannot be opened. */
+final class UnreadableFileStream
+{
+    /** @var resource|null */
+    public $context;
+
+    /** @return array<string, int> */
+    public function url_stat(string $path, int $flags): array
+    {
+        return ['mode' => 0o100644, 'size' => 8];
+    }
+
+    public function stream_open(string $path, string $mode, int $options, ?string &$openedPath): bool
+    {
+        return false;
     }
 }

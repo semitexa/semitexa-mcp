@@ -80,13 +80,18 @@ try {
 
     $page = ['module' => $module, 'name' => 'Pricing', 'path' => $path, 'method' => 'GET'];
     // The whole module tree before and after, not one file the dry run
-    // might have skipped while writing another.
+    // might have skipped while writing another: every directory too (an
+    // empty one is still a write), and each file by its contents (a file
+    // rewritten in place keeps its name).
     $listing = static function () use ($moduleDir): array {
         $paths = [];
-        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($moduleDir, FilesystemIterator::SKIP_DOTS)) as $file) {
-            $paths[] = $file instanceof SplFileInfo ? $file->getPathname() : '';
+        $tree = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($moduleDir, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST);
+        foreach ($tree as $file) {
+            if ($file instanceof SplFileInfo) {
+                $paths[$file->getPathname()] = $file->isDir() ? 'dir' : (string) sha1_file($file->getPathname());
+            }
         }
-        sort($paths);
+        ksort($paths);
 
         return $paths;
     };
