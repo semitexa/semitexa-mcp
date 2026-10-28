@@ -224,6 +224,10 @@ final class SemitexaMcpRelay
     }
 
     /**
+     * Every start says SEMITEXA_MCP_RELAYED: without it bin/semitexa saw no
+     * relay above it and started another, which started another — a fork
+     * bomb of relays that took a host to a load of a thousand.
+     *
      * $restart: only a restart asks for the running app (SEMITEXA_MCP_DIRECT),
      * so it never starts a one-off container mid-restart. The first start
      * keeps bin/semitexa's fallbacks: with the flag, a stopped app (or a
@@ -234,6 +238,7 @@ final class SemitexaMcpRelay
     private function start(bool $restart = false): ?array
     {
         $env = getenv();
+        $env['SEMITEXA_MCP_RELAYED'] = '1';
         if ($restart) {
             $env['SEMITEXA_MCP_DIRECT'] = '1';
         }
