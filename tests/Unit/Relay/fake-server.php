@@ -12,6 +12,6 @@ while (($line = fgets(STDIN)) !== false) {
     if (($message['method'] ?? '') === 'test/die') {
         exit(0);
     }
-    echo json_encode(['jsonrpc' => '2.0', 'id' => $message['id'], 'result' => ['pid' => getmypid(), 'method' => $message['method'] ?? null, 'direct' => (string) getenv('SEMITEXA_MCP_DIRECT')]]), "\n";
+    echo json_encode(['jsonrpc' => '2.0', 'id' => $message['id'], 'result' => ['pid' => getmypid(), 'method' => $message['method'] ?? null, 'direct' => (string) getenv('SEMITEXA_MCP_DIRECT'), 'relayed' => (string) getenv('SEMITEXA_MCP_RELAYED')]]), "\n";
     fflush(STDOUT);
 }

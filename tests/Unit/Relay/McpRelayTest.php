@@ -68,6 +68,9 @@ final class McpRelayTest extends TestCase
         // The first start keeps bin/semitexa's fallbacks: with the flag, a
         // stopped app answered 75 and the server never started.
         self::assertSame('', $before['direct']);
+        // REGRESSION: without it bin/semitexa started a relay under the
+        // relay, and so on — a fork bomb on the host.
+        self::assertSame('1', $before['relayed'], 'the first start says the relay is already there');
 
         // The container goes away mid-call.
         $this->send(['jsonrpc' => '2.0', 'id' => 3, 'method' => 'test/die']);
@@ -83,6 +86,7 @@ final class McpRelayTest extends TestCase
         self::assertSame(4, $after['id']);
         self::assertNotSame($pid, $after['result']['pid'], 'answered by the new server');
         self::assertSame('1', $after['result']['direct'], 'a restart asks for the running app');
+        self::assertSame('1', $after['result']['relayed']);
 
         $seen = (string) file_get_contents($this->log);
         $newServer = array_values(array_filter(explode("\n", $seen), static fn (string $l): bool => str_starts_with($l, $after['result']['pid'] . ' ')));
