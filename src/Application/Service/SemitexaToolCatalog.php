@@ -27,6 +27,16 @@ final class SemitexaToolCatalog
                 hidden: ['traces'],
             ),
             new CommandToolSpec(
+                'semitexa_charter',
+                'ai:charter',
+                'The project owner\'s direction, and what Semitexa asks them next. When semitexa_orient shows owner_questions, '
+                    . 'ask the owner that question in their words at a natural point (never instead of their request), '
+                    . 'then record the answer: action answer, field, value. action next gives the question after it.',
+                fixed: ['--json'],
+                readOnly: false,
+                idempotent: false,
+            ),
+            new CommandToolSpec(
                 'semitexa_ask',
                 'ai:ask',
                 'Ask about this project and the framework instead of guessing: capabilities (what exists to build with), '
