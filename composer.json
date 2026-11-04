@@ -6,7 +6,7 @@
     "require": {
         "php": "^8.4",
         "semitexa/core": "*",
-        "semitexa/dev": "*"
+        "semitexa/dev": ">=2026.11.04.1133 || dev-master"
     },
     "autoload": {
         "psr-4": {
@@ -21,7 +21,7 @@
     "extra": {
         "semitexa": {
             "floors": {
-                "semitexa/dev": "next"
+                "semitexa/dev": "2026.11.04.1133"
             }
         },
         "semitexa-module": {
