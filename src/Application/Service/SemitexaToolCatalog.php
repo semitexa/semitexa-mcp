@@ -40,7 +40,8 @@ final class SemitexaToolCatalog
                 'semitexa_ask',
                 'ai:ask',
                 'Ask about this project and the framework instead of guessing: capabilities (what exists to build with), '
-                    . 'mechanisms, project, module (with name), route (with path, method), event (with name), path (a file or directory), logs.',
+                    . 'mechanisms, project, module (with name), route (with path, method), event (with name), path (a file or directory), '
+                    . 'api (with name or search: how a framework class is called, instead of reading vendor/), logs.',
             ),
             new CommandToolSpec(
                 'semitexa_task',

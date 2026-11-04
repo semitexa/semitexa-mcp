@@ -19,6 +19,11 @@
         }
     },
     "extra": {
+        "semitexa": {
+            "floors": {
+                "semitexa/dev": "next"
+            }
+        },
         "semitexa-module": {
             "extends": null
         }
