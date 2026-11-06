@@ -39,8 +39,8 @@ final class MakeItPrompt implements McpPromptProviderInterface
         return [['role' => 'user', 'text' => implode("\n", [
             'Make it. What to do next is Semitexa\'s answer, not yours to work out:',
             '1. Call semitexa_make_it.',
-            '2. Tell me what say says, in my language, and do the steps. They are bin/semitexa commands, for your shell; if you have none, tell me.',
-            '3. While go_on is true, go back to 1. When it is false, stop.',
+            '2. Tell me what say says, in my language, and do the steps. They are bin/semitexa commands, for your shell; if you have none, tell me and stop.',
+            '3. While go_on is true, go back to 1. When it is false, finish its steps and stop; go back to 1 only if a step says so.',
             '',
             'Do not take a task it did not name, and do not approve anything yourself: that is my word.',
         ])]];

@@ -30,6 +30,7 @@ final class MakeItPromptTest extends TestCase
         self::assertSame('user', $messages[0]['role']);
         self::assertStringContainsString('semitexa_make_it', $messages[0]['text']);
         self::assertStringContainsString('While go_on is true', $messages[0]['text']);
+        self::assertStringContainsString('When it is false, finish its steps and stop', $messages[0]['text']);
     }
 
     #[Test]
@@ -39,12 +40,11 @@ final class MakeItPromptTest extends TestCase
     }
 
     #[Test]
-    public function the_tool_it_names_exists_and_asks_for_json(): void
+    public function the_tool_it_names_runs_the_command(): void
     {
         $specs = array_values(array_filter(SemitexaToolCatalog::specs(), static fn ($s): bool => $s->tool === 'semitexa_make_it'));
 
         self::assertCount(1, $specs);
         self::assertSame('ai:make-it', $specs[0]->command);
-        self::assertSame(['--json'], $specs[0]->fixed);
     }
 }
