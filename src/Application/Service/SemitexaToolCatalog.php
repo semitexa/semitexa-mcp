@@ -40,7 +40,7 @@ final class SemitexaToolCatalog
                 'semitexa_make_it',
                 'ai:make-it',
                 'What to do next in this project, from the state of its backlog: state, what to say, the steps, and go_on. '
-                    . 'Call it when told "make it", do the steps, and call it again while go_on is true.',
+                    . 'Call it when told "make it", do the steps, and call it again while go_on is true, or when a step says so: an interview asks for it after each answer.',
                 fixed: ['--json'],
             ),
             new CommandToolSpec(
