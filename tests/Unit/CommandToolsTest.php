@@ -170,6 +170,56 @@ final class CommandToolsTest extends TestCase
         self::assertSame('write is true or false.', $notBool->content[0]['text']);
     }
 
+    /**
+     * The next commands an answer names are the tools that run them
+     * (tk-mcp-next-command-unreachable): an agent over MCP has no shell, so a
+     * console call it cannot make is not a next step.
+     */
+    #[Test]
+    public function next_commands_become_tool_calls_and_the_unreachable_ones_go(): void
+    {
+        $this->runner->next = new CommandRun(0, (string) json_encode([
+            'answer' => 42,
+            'next_command' => [
+                ['cmd' => 'probe:ask', 'args' => ['route', '--name=Blog', '--files=a.php', '--files=b.php', '--list', '--json'], 'why' => 'ask about the route'],
+                ['cmd' => 'make:page', 'args' => ['--module=Blog', '--name=Home', '--write', '--json'], 'why' => 'make it'],
+                ['cmd' => 'export', 'args' => ['SEMITEXA_AGENT_SESSION=abc'], 'why' => 'a shell step'],
+                ['cmd' => 'probe:absent', 'args' => [], 'why' => 'not installed'],
+                ['cmd' => 'probe:ask', 'args' => ['x', '--trace=t1'], 'why' => 'a trace is the tool\'s own'],
+                ['cmd' => 'probe:ask', 'args' => ['x', '--unknown=1'], 'why' => 'no such input'],
+            ],
+            'nested' => ['next_command' => [['cmd' => 'export', 'args' => [], 'why' => 'gone too']]],
+        ]), '');
+
+        $result = $this->tools()->call('probe_ask', ['subject' => 'x']);
+
+        self::assertIsArray($result->structured);
+        self::assertSame(42, $result->structured['answer']);
+        self::assertEquals([
+            ['tool' => 'probe_ask', 'arguments' => ['subject' => 'route', 'name' => 'Blog', 'files' => ['a.php', 'b.php'], 'list' => true], 'why' => 'ask about the route'],
+            ['tool' => 'semitexa_generate', 'arguments' => ['generator' => 'make:page', 'options' => (object) ['module' => 'Blog', 'name' => 'Home'], 'write' => true], 'why' => 'make it'],
+            ['tool' => 'probe_ask', 'arguments' => ['subject' => 'x'], 'why' => 'a trace is the tool\'s own'],
+        ], $result->structured['next_command']);
+        self::assertSame([], $result->structured['nested']['next_command']);
+
+        // Every next step names a tool this server lists.
+        $listed = array_map(static fn (McpTool $t): string => $t->name, $this->tools()->tools());
+        foreach ($result->structured['next_command'] as $next) {
+            self::assertContains($next['tool'], $listed);
+        }
+    }
+
+    #[Test]
+    public function a_failed_answer_keeps_what_the_command_said(): void
+    {
+        $this->runner->next = new CommandRun(1, '{"next_command":[{"cmd":"export","args":[]}]}', 'boom');
+
+        $result = $this->tools()->call('probe_ask', ['subject' => 'x']);
+
+        self::assertTrue($result->isError);
+        self::assertStringContainsString('export', (string) json_encode($result->toArray()));
+    }
+
     private function tool(string $name): McpTool
     {
         foreach ($this->tools()->tools() as $tool) {
