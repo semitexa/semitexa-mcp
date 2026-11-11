@@ -382,7 +382,8 @@ final class CommandTools implements McpToolProviderInterface
                 continue;
             }
             $arguments = $this->toolArguments($console->getNativeDefinition(), $this->notOffered($spec), $args, $spec->fixed);
-            if ($arguments === null) {
+            // What call() would refuse is not a next step (review, mcp#6).
+            if ($arguments === null || self::reservedKeySet($spec, $arguments) !== null) {
                 return null;
             }
 
@@ -404,6 +405,7 @@ final class CommandTools implements McpToolProviderInterface
      */
     private function toolArguments(InputDefinition $definition, array $notOffered, array $args, array $fixed = []): ?array
     {
+        /** @var array<string, mixed> $input */
         $input = [];
         $positional = [];
         foreach ($args as $arg) {
@@ -414,7 +416,10 @@ final class CommandTools implements McpToolProviderInterface
                 $positional[] = $arg;
                 continue;
             }
-            [$name, $value] = str_contains($arg, '=') ? explode('=', substr($arg, 2), 2) : [substr($arg, 2), true];
+            $body = substr($arg, 2);
+            $eq = strpos($body, '=');
+            $name = $eq === false ? $body : substr($body, 0, $eq);
+            $value = $eq === false ? true : substr($body, $eq + 1);
             if (in_array($name, self::NEVER_OFFERED, true)) {
                 continue;
             }
@@ -422,6 +427,11 @@ final class CommandTools implements McpToolProviderInterface
                 return null;
             }
             $option = $definition->getOption($name);
+            // The form must fit the option, as argv() reads it back: a flag
+            // written --name, a value written --name=value (review, mcp#6).
+            if ($option->acceptValue() !== is_string($value)) {
+                return null;
+            }
             if ($option->isArray()) {
                 $input[$name] = [...(array) ($input[$name] ?? []), $value];
             } else {

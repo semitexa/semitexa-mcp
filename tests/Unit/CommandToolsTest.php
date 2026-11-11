@@ -187,25 +187,32 @@ final class CommandToolsTest extends TestCase
                 ['cmd' => 'probe:absent', 'args' => [], 'why' => 'not installed'],
                 ['cmd' => 'probe:ask', 'args' => ['x', '--trace=t1'], 'why' => 'a trace is the tool\'s own'],
                 ['cmd' => 'probe:ask', 'args' => ['x', '--unknown=1'], 'why' => 'no such input'],
+                ['cmd' => 'probe:ask', 'args' => ['x', '--name'], 'why' => 'a value option with no value'],
+                ['cmd' => 'probe:ask', 'args' => ['x', '--list=1'], 'why' => 'a flag given a value'],
+                ['cmd' => 'probe:make', 'args' => ['--arg=force=1'], 'why' => 'a key the tool keeps'],
             ],
             'nested' => ['next_command' => [['cmd' => 'export', 'args' => [], 'why' => 'gone too']]],
         ]), '');
 
         $result = $this->tools()->call('probe_ask', ['subject' => 'x']);
 
-        self::assertIsArray($result->structured);
-        self::assertSame(42, $result->structured['answer']);
+        $structured = $result->structured;
+        self::assertIsArray($structured);
+        self::assertSame(42, $structured['answer']);
+        $next = $structured['next_command'];
+        self::assertIsArray($next);
         self::assertEquals([
             ['tool' => 'probe_ask', 'arguments' => ['subject' => 'route', 'name' => 'Blog', 'files' => ['a.php', 'b.php'], 'list' => true], 'why' => 'ask about the route'],
             ['tool' => 'semitexa_generate', 'arguments' => ['generator' => 'make:page', 'options' => (object) ['module' => 'Blog', 'name' => 'Home'], 'write' => true], 'why' => 'make it'],
             ['tool' => 'probe_ask', 'arguments' => ['subject' => 'x'], 'why' => 'a trace is the tool\'s own'],
-        ], $result->structured['next_command']);
-        self::assertSame([], $result->structured['nested']['next_command']);
+        ], $next);
+        self::assertSame(['next_command' => []], $structured['nested']);
 
         // Every next step names a tool this server lists.
         $listed = array_map(static fn (McpTool $t): string => $t->name, $this->tools()->tools());
-        foreach ($result->structured['next_command'] as $next) {
-            self::assertContains($next['tool'], $listed);
+        foreach ($next as $call) {
+            self::assertIsArray($call);
+            self::assertContains($call['tool'], $listed);
         }
     }
 
@@ -217,7 +224,12 @@ final class CommandToolsTest extends TestCase
         $result = $this->tools()->call('probe_ask', ['subject' => 'x']);
 
         self::assertTrue($result->isError);
-        self::assertStringContainsString('export', (string) json_encode($result->toArray()));
+        // Exactly as the command wrote it, and what it said (review, mcp#6).
+        $expected = "probe:ask exited with 1.\n" . json_encode(
+            ['output' => ['next_command' => [['cmd' => 'export', 'args' => []]]], 'stderr' => 'boom'],
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_INVALID_UTF8_SUBSTITUTE,
+        );
+        self::assertSame($expected, $result->content[0]['text']);
     }
 
     private function tool(string $name): McpTool
