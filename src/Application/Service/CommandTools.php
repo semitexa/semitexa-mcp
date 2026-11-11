@@ -92,7 +92,7 @@ final class CommandTools implements McpToolProviderInterface
             return McpToolResult::error($argv);
         }
 
-        return self::answer($spec->command, $this->runner->run($spec->command, $argv, $spec->timeoutSeconds));
+        return $this->reachable(self::answer($spec->command, $this->runner->run($spec->command, $argv, $spec->timeoutSeconds)));
     }
 
     /** @param array<string, mixed> $arguments */
@@ -121,7 +121,7 @@ final class CommandTools implements McpToolProviderInterface
             return McpToolResult::error($argv);
         }
 
-        return self::answer($generator, $this->runner->run($generator, $argv, 120));
+        return $this->reachable(self::answer($generator, $this->runner->run($generator, $argv, 120)));
     }
 
     /** @param array<string, Command> $generators */
@@ -295,6 +295,160 @@ final class CommandTools implements McpToolProviderInterface
     private static function scalar(bool|int|float|string $value): string
     {
         return is_bool($value) ? ($value ? '1' : '0') : (string) $value;
+    }
+
+    /**
+     * The next commands an answer names, as the tools that run them
+     * (tk-mcp-next-command-unreachable). The commands write next_command as
+     * console calls ({cmd, args, why}); an agent here has only these tools, so
+     * each entry becomes {tool, arguments, why}, and an entry no tool can run
+     * is dropped instead of sending the agent to a shell it may not have.
+     */
+    private function reachable(McpToolResult $result): McpToolResult
+    {
+        if ($result->isError || !is_array($result->structured)) {
+            return $result;
+        }
+
+        return McpToolResult::json($this->rewriteNext($result->structured));
+    }
+
+    /**
+     * @param array<mixed> $value
+     * @return array<mixed>
+     */
+    private function rewriteNext(array $value): array
+    {
+        foreach ($value as $key => $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            if ($key === 'next_command' && array_is_list($item)) {
+                $value[$key] = $this->asTools($item);
+                continue;
+            }
+            $value[$key] = $this->rewriteNext($item);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param list<mixed> $entries
+     * @return list<array{tool: string, arguments: array<string, mixed>, why?: string}>
+     */
+    private function asTools(array $entries): array
+    {
+        $tools = [];
+        foreach ($entries as $entry) {
+            if (!is_array($entry) || !is_string($entry['cmd'] ?? null)) {
+                continue;
+            }
+            $args = array_values(array_filter(is_array($entry['args'] ?? null) ? $entry['args'] : [], 'is_string'));
+            $call = $this->toolFor($entry['cmd'], $args);
+            if ($call === null) {
+                continue;
+            }
+            if (is_string($entry['why'] ?? null)) {
+                $call['why'] = $entry['why'];
+            }
+            $tools[] = $call;
+        }
+
+        return $tools;
+    }
+
+    /**
+     * @param list<string> $args
+     * @return array{tool: string, arguments: array<string, mixed>}|null null when no tool runs it as written
+     */
+    private function toolFor(string $command, array $args): ?array
+    {
+        if (isset($this->generators()[$command])) {
+            // write and dry-run are the tool's own input (write: true), not an option.
+            $options = $this->toolArguments($this->generators()[$command]->getNativeDefinition(), array_merge(self::NEVER_OFFERED, self::GENERATOR_HIDDEN), $args, ['--write', '--dry-run']);
+            if ($options === null) {
+                return null;
+            }
+            $arguments = ['generator' => $command, 'options' => (object) $options];
+            if (in_array('--write', $args, true)) {
+                $arguments['write'] = true;
+            }
+
+            return ['tool' => self::GENERATE, 'arguments' => $arguments];
+        }
+        foreach ($this->byTool() as $tool => ['spec' => $spec, 'command' => $console]) {
+            if ($spec->command !== $command) {
+                continue;
+            }
+            $arguments = $this->toolArguments($console->getNativeDefinition(), $this->notOffered($spec), $args, $spec->fixed);
+            // What call() would refuse is not a next step (review, mcp#6).
+            if ($arguments === null || self::reservedKeySet($spec, $arguments) !== null) {
+                return null;
+            }
+
+            return ['tool' => $tool, 'arguments' => $arguments];
+        }
+
+        return null;
+    }
+
+    /**
+     * The tool's input for a console call: positional values by argument name,
+     * --name=value and --name as options. Options the tool sets itself (fixed,
+     * --json) are left out; one it does not offer means it cannot run this.
+     *
+     * @param list<string> $notOffered
+     * @param list<string> $args
+     * @param list<string> $fixed
+     * @return array<string, mixed>|null
+     */
+    private function toolArguments(InputDefinition $definition, array $notOffered, array $args, array $fixed = []): ?array
+    {
+        /** @var array<string, mixed> $input */
+        $input = [];
+        $positional = [];
+        foreach ($args as $arg) {
+            if (in_array($arg, $fixed, true) || $arg === '--') {
+                continue;
+            }
+            if (!str_starts_with($arg, '--')) {
+                $positional[] = $arg;
+                continue;
+            }
+            $body = substr($arg, 2);
+            $eq = strpos($body, '=');
+            $name = $eq === false ? $body : substr($body, 0, $eq);
+            $value = $eq === false ? true : substr($body, $eq + 1);
+            if (in_array($name, self::NEVER_OFFERED, true)) {
+                continue;
+            }
+            if (!$definition->hasOption($name) || in_array($name, $notOffered, true)) {
+                return null;
+            }
+            $option = $definition->getOption($name);
+            // The form must fit the option, as argv() reads it back: a flag
+            // written --name, a value written --name=value (review, mcp#6).
+            if ($option->acceptValue() !== is_string($value)) {
+                return null;
+            }
+            if ($option->isArray()) {
+                $input[$name] = [...(array) ($input[$name] ?? []), $value];
+            } else {
+                $input[$name] = $value;
+            }
+        }
+        foreach ($definition->getArguments() as $argument) {
+            if ($positional === []) {
+                break;
+            }
+            $input[$argument->getName()] = $argument->isArray() ? $positional : array_shift($positional);
+            if ($argument->isArray()) {
+                $positional = [];
+            }
+        }
+
+        return $positional === [] ? $input : null;
     }
 
     /**
