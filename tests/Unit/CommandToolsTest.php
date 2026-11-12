@@ -11,6 +11,7 @@ use Semitexa\Mcp\Domain\Contract\CommandRunnerInterface;
 use Semitexa\Mcp\Domain\Model\CommandRun;
 use Semitexa\Mcp\Domain\Model\CommandToolSpec;
 use Semitexa\Mcp\Domain\Model\McpTool;
+use Semitexa\Mcp\Tests\Unit\Fixture\RequiringPageCommand;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -146,7 +147,8 @@ final class CommandToolsTest extends TestCase
         $tool = $this->tool('semitexa_generate');
 
         self::assertSame(['make:page'], $tool->inputSchema['properties']['generator']['enum']);
-        self::assertStringContainsString("- make:page: Makes a page. Options: module, name.", $tool->description);
+        // What it refuses to run without, so the first call can be complete (tk-mcp-generate-names-required-options).
+        self::assertStringContainsString("- make:page: Makes a page. Requires: module. Options: module, name.", $tool->description);
         self::assertSame(['generator'], $tool->inputSchema['required']);
     }
 
@@ -258,14 +260,7 @@ final class CommandToolsTest extends TestCase
             ->addOption('recipe', null, InputOption::VALUE_REQUIRED, 'Recipe')
             ->addOption('arg', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'key=value')
             ->addOption('json', null, InputOption::VALUE_NONE, 'As JSON'));
-        $console->add((new Command('make:page'))
-            ->setDescription('Makes a page')
-            ->addOption('module', null, InputOption::VALUE_REQUIRED, 'Module')
-            ->addOption('name', null, InputOption::VALUE_REQUIRED, 'Name')
-            ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite')
-            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Dry')
-            ->addOption('write', null, InputOption::VALUE_NONE, 'Write')
-            ->addOption('json', null, InputOption::VALUE_NONE, 'As JSON'));
+        $console->add(new RequiringPageCommand());
 
         return new CommandTools($console, $this->runner, [
             new CommandToolSpec('probe_ask', 'probe:ask', 'Ask instead of guessing.'),

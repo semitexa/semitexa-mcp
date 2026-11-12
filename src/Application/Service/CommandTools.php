@@ -12,6 +12,7 @@ use Semitexa\Mcp\Domain\Model\McpTool;
 use Semitexa\Mcp\Domain\Model\McpToolResult;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Command\LazyCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputOption;
@@ -130,7 +131,14 @@ final class CommandTools implements McpToolProviderInterface
         $lines = [];
         foreach ($generators as $name => $command) {
             $options = array_keys($this->schema($command->getNativeDefinition(), array_merge(self::NEVER_OFFERED, self::GENERATOR_HIDDEN))['properties']);
-            $lines[] = sprintf('- %s: %s Options: %s.', $name, rtrim($command->getDescription(), '.') . '.', implode(', ', $options));
+            $requires = self::requiredOptions($command);
+            $lines[] = sprintf(
+                '- %s: %s%s Options: %s.',
+                $name,
+                rtrim($command->getDescription(), '.') . '.',
+                $requires !== [] ? ' Requires: ' . implode(', ', $requires) . '.' : '',
+                implode(', ', $options),
+            );
         }
 
         return new McpTool(
@@ -149,6 +157,25 @@ final class CommandTools implements McpToolProviderInterface
             ],
             title: 'Generate code',
         );
+    }
+
+    /**
+     * The options a generator refuses to run without, from its REQUIRED_OPTIONS
+     * (every make:* declares one; Symfony's VALUE_REQUIRED only means "takes a
+     * value"). An agent used to learn them from a refusal, one call each
+     * (tk-mcp-generate-names-required-options).
+     *
+     * @return list<string>
+     */
+    private static function requiredOptions(Command $command): array
+    {
+        if ($command instanceof LazyCommand) {
+            $command = $command->getCommand();
+        }
+        $constant = $command::class . '::REQUIRED_OPTIONS';
+        $required = defined($constant) ? constant($constant) : [];
+
+        return is_array($required) ? array_values(array_filter($required, 'is_string')) : [];
     }
 
     /**
